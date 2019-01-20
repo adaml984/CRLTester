@@ -26,15 +26,25 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View v) {
                 try {
                     String url = urlEditText.getText().toString();
-                    Boolean result = checkUrl(url);
+                    UrlTestResult result = checkUrl(url);
                     AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
 
-                    if (result) {
+                    if (result.IsSuccess) {
                         builder.setMessage("Can display " + url)
                                 .setTitle("CRL Tester");
                     } else {
-                        builder.setMessage("Can't display " + url)
-                                .setTitle("CRL Tester");
+                        if (result.LastException == null)
+                            builder.setMessage("Can't display " + url)
+                                    .setTitle("CRL Tester");
+                        else {
+                            String message = result.LastException.getMessage();
+                            if (message != null && !message.isEmpty())
+                                builder.setMessage(message)
+                                        .setTitle("CRL Tester");
+                            else
+                                builder.setMessage("Can't display " + url)
+                                        .setTitle("CRL Tester");
+                        }
                     }
                     AlertDialog dialog = builder.create();
                     dialog.show();
@@ -52,7 +62,7 @@ public class MainActivity extends AppCompatActivity {
         return this;
     }
 
-    private Boolean checkUrl(String url) throws ExecutionException, InterruptedException {
+    private UrlTestResult checkUrl(String url) throws ExecutionException, InterruptedException {
         OpenUrlInBackground d = new OpenUrlInBackground();
         return d.execute(url).get();
     }

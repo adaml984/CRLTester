@@ -24,6 +24,7 @@ import java.util.EnumSet;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
@@ -33,12 +34,13 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 
-public class OpenUrlInBackground extends AsyncTask<String, Void, Boolean> {
+public class OpenUrlInBackground extends AsyncTask<String, Void, UrlTestResult> {
     @Override
-    protected Boolean doInBackground(String... urls) {
+    protected UrlTestResult doInBackground(String... urls) {
+        UrlTestResult result = new UrlTestResult();
         OkHttpClient client = null;
         String url = urls[0];
-        if(!url.startsWith("https")){
+        if (!url.startsWith("https")) {
             url = "https://" + url;
         }
 
@@ -46,25 +48,31 @@ public class OpenUrlInBackground extends AsyncTask<String, Void, Boolean> {
             client = new OkHttpClient.Builder()
                     .sslSocketFactory(buildSocketFactory(), buildTrustManager())
                     .retryOnConnectionFailure(true).build();
-        } catch (SSLInitializationException e) {
-            e.printStackTrace();
         } catch (NoSuchAlgorithmException e) {
-            e.printStackTrace();
+            result.LastException = e;
+            return result;
         } catch (KeyStoreException e) {
-            e.printStackTrace();
+            result.LastException = e;
+            return result;
+        } catch (SSLInitializationException e) {
+            result.LastException = e;
+            return result;
         }
 
         Request request = new Request.Builder()
                 .url(url)
                 .build();
-
         try (Response response = client.newCall(request).execute()) {
-            Log.d("", response.body().string()) ;
-            return true;
+            Log.d("", response.body().string());
+            result.IsSuccess = false;
+            return result;
+        } catch (SSLHandshakeException e) {
+            result.LastException = e;
+            return result;
         } catch (IOException e) {
-            e.printStackTrace();
+            result.LastException = e;
+            return result;
         }
-        return false;
     }
 
     private SSLSocketFactory buildSocketFactory() throws SSLInitializationException {
@@ -104,12 +112,12 @@ public class OpenUrlInBackground extends AsyncTask<String, Void, Boolean> {
 
     private X509TrustManager buildTrustManager() throws NoSuchAlgorithmException, KeyStoreException {
         final TrustManagerFactory javaDefaultTrustManager = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-        javaDefaultTrustManager.init((KeyStore)null);
+        javaDefaultTrustManager.init((KeyStore) null);
         final TrustManagerFactory customCaTrustManager = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-        customCaTrustManager.init((KeyStore)null);
+        customCaTrustManager.init((KeyStore) null);
         return new TrustManagerDelegate(
-                (X509TrustManager)customCaTrustManager.getTrustManagers()[0],
-                (X509TrustManager)javaDefaultTrustManager.getTrustManagers()[0]
+                (X509TrustManager) customCaTrustManager.getTrustManagers()[0],
+                (X509TrustManager) javaDefaultTrustManager.getTrustManagers()[0]
         );
     }
 }

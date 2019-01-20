@@ -55,15 +55,15 @@ public class TrustManagerDelegate implements X509TrustManager{
             params.setRevocationEnabled(true);
             validator.validate(certPath, params);
         }  catch (NoSuchAlgorithmException e) {
-            e.printStackTrace();
+            throw new SSLInitializationException(e.getLocalizedMessage(), e);
         } catch (KeyStoreException e) {
-            e.printStackTrace();
+            throw new SSLInitializationException(e.getLocalizedMessage(), e);
         } catch (InvalidAlgorithmParameterException e) {
-            e.printStackTrace();
+            throw new SSLInitializationException(e.getLocalizedMessage(), e);
         } catch (IOException e) {
-            e.printStackTrace();
+            throw new SSLInitializationException(e.getLocalizedMessage(), e);
         } catch (CertPathValidatorException e) {
-            throw new SSLInitializationException("", e);
+            throw new SSLInitializationException(e.getLocalizedMessage(), e);
         }
     }
 
