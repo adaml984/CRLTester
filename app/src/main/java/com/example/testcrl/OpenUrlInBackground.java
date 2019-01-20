@@ -64,7 +64,7 @@ public class OpenUrlInBackground extends AsyncTask<String, Void, UrlTestResult> 
                 .build();
         try (Response response = client.newCall(request).execute()) {
             Log.d("", response.body().string());
-            result.IsSuccess = false;
+            result.IsSuccess = true;
             return result;
         } catch (SSLHandshakeException e) {
             result.LastException = e;
