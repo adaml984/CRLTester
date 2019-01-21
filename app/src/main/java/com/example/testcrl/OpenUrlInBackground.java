@@ -6,6 +6,7 @@ import android.support.annotation.RequiresApi;
 import android.util.Log;
 
 import org.bouncycastle.asn1.ASN1InputStream;
+import org.bouncycastle.asn1.ASN1Primitive;
 import org.bouncycastle.asn1.DERIA5String;
 import org.bouncycastle.asn1.DEROctetString;
 import org.bouncycastle.asn1.x509.CRLDistPoint;
@@ -19,6 +20,7 @@ import java.io.ByteArrayInputStream;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.security.InvalidAlgorithmParameterException;
@@ -28,11 +30,14 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.UnrecoverableKeyException;
+import java.security.cert.CRLException;
 import java.security.cert.CertPathBuilder;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
+import java.security.cert.CertificateFactory;
 import java.security.cert.PKIXBuilderParameters;
 import java.security.cert.PKIXRevocationChecker;
+import java.security.cert.X509CRL;
 import java.security.cert.X509CertSelector;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
@@ -143,28 +148,30 @@ public class OpenUrlInBackground extends AsyncTask<String, Void, UrlTestResult> 
     @Override
     protected UrlTestResult doInBackground(String... strings) {
         URL url = null;
+        UrlTestResult result = new UrlTestResult();
         try {
             url = new URL(strings[0]);
         } catch (MalformedURLException e) {
             e.printStackTrace();
         }
         try {
-            HttpsURLConnection urlConnection = (HttpsURLConnection)url.openConnection();
+            HttpsURLConnection urlConnection = (HttpsURLConnection) url.openConnection();
             urlConnection.connect();
             Certificate[] certs = urlConnection.getServerCertificates();
-            if(certs.length > 0)
-            {
-
+            if (certs.length > 0) {
+                for (Certificate cert : certs) {
+                    List<String> zzz = getCrlUrls((X509Certificate) cert);
+                }
             }
+            result.IsSuccess = true;
         } catch (IOException e) {
-            e.printStackTrace();
+            result.LastException = e;
         }
 
-       return new UrlTestResult();
+        return result;
     }
 
-    private List<String> getCrlUrls(X509Certificate certificate)
-    {
+    private List<String> getCrlUrls(X509Certificate certificate) {
         List<String> crlUrls = new ArrayList<String>();
         try {
             byte[] crldpExt = certificate.getExtensionValue(X509Extensions.CRLDistributionPoints.getId());
@@ -192,11 +199,30 @@ public class OpenUrlInBackground extends AsyncTask<String, Void, UrlTestResult> 
                     }
                 }
             }
-        }catch (Exception e)
-        {
+        } catch (Exception e) {
 
         }
         return crlUrls;
     }
 
+    private X509CRL getCrlObject(String crlURL) {
+        URL url = null;
+        try {
+            url = new URL(crlURL);
+            InputStream crlStream = url.openStream();
+            CertificateFactory cf = CertificateFactory.getInstance("X.509");
+            X509CRL crl = (X509CRL) cf.generateCRL(crlStream);
+            crlStream.close();
+            return crl;
+        } catch (MalformedURLException e) {
+            e.printStackTrace();
+        } catch (CertificateException e) {
+            e.printStackTrace();
+        } catch (CRLException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
 }
