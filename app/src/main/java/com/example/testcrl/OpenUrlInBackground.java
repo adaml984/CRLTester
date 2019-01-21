@@ -65,10 +65,6 @@ public class OpenUrlInBackground extends AsyncTask<String, Void, UrlTestResult> 
         UrlTestResult result = new UrlTestResult();
         try {
             url = new URL(strings[0]);
-        } catch (MalformedURLException e) {
-            e.printStackTrace();
-        }
-        try {
             HttpsURLConnection urlConnection = (HttpsURLConnection) url.openConnection();
             urlConnection.connect();
             Certificate[] certs = urlConnection.getServerCertificates();
