@@ -1,18 +1,38 @@
 package com.example.testcrl;
 
+import org.bouncycastle.asn1.ASN1InputStream;
+import org.bouncycastle.asn1.ASN1Primitive;
+import org.bouncycastle.asn1.DERIA5String;
+import org.bouncycastle.asn1.DEROctetString;
+import org.bouncycastle.asn1.x509.CRLDistPoint;
+import org.bouncycastle.asn1.x509.DistributionPoint;
+import org.bouncycastle.asn1.x509.DistributionPointName;
+import org.bouncycastle.asn1.x509.GeneralName;
+import org.bouncycastle.asn1.x509.GeneralNames;
+import org.bouncycastle.asn1.x509.X509Extensions;
+
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.Principal;
+import java.security.cert.CRLException;
 import java.security.cert.CertPath;
 import java.security.cert.CertPathValidator;
 import java.security.cert.CertPathValidatorException;
+import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.PKIXParameters;
+import java.security.cert.X509CRL;
+import java.security.cert.X509CRLEntry;
 import java.security.cert.X509Certificate;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -39,11 +59,6 @@ public class TrustManagerDelegate implements X509TrustManager{
 
     @Override
     public void checkServerTrusted(final X509Certificate[] chain, final String authType) throws CertificateException {
-//        try {
-//            this.mainTrustManager.checkServerTrusted(chain, authType);
-//        } catch (CertificateException ex) {
-//            this.trustManager.checkServerTrusted(chain, authType);
-//        }
         try {
             X509Certificate[] reorderedChain = reorderCertificateChain(chain);
             CertPathValidator validator = CertPathValidator.getInstance("PKIX");
@@ -52,8 +67,11 @@ public class TrustManagerDelegate implements X509TrustManager{
             KeyStore ks = KeyStore.getInstance("AndroidCAStore");
             ks.load(null, null);
             PKIXParameters params = new PKIXParameters(ks);
-            params.setRevocationEnabled(true);
+            params.setRevocationEnabled(false);
             validator.validate(certPath, params);
+            for(X509Certificate cert : reorderedChain){
+                validateCrl(cert);
+            }
         }  catch (NoSuchAlgorithmException e) {
             throw new SSLInitializationException(e.getLocalizedMessage(), e);
         } catch (KeyStoreException e) {
@@ -65,6 +83,74 @@ public class TrustManagerDelegate implements X509TrustManager{
         } catch (CertPathValidatorException e) {
             throw new SSLInitializationException(e.getMessage(), e);
         }
+    }
+
+    private void validateCrl(Certificate certificate) throws SSLInitializationException {
+        List<String> crlUrls = getCrlUrls((X509Certificate) certificate);
+        for (String crlUrl : crlUrls) {
+            X509CRL crlObject = getCrlObject(crlUrl);
+            if (crlObject != null) {
+                X509CRLEntry entry = crlObject.getRevokedCertificate((X509Certificate) certificate);
+                if (entry != null) {
+                    throw new SSLInitializationException("Certificate found on CRL",null);
+                }
+            }
+        }
+    }
+
+    private List<String> getCrlUrls(X509Certificate certificate) {
+        List<String> crlUrls = new ArrayList<String>();
+        try {
+            byte[] crldpExt = certificate.getExtensionValue(X509Extensions.CRLDistributionPoints.getId());
+            ASN1InputStream oAsnInStream = new ASN1InputStream(new ByteArrayInputStream(crldpExt));
+            ASN1Primitive derObjCrlDP = oAsnInStream.readObject();
+            DEROctetString dosCrlDP = (DEROctetString) derObjCrlDP;
+            byte[] crldpExtOctets = dosCrlDP.getOctets();
+            ASN1InputStream oAsnInStream2 = new ASN1InputStream(
+                    new ByteArrayInputStream(crldpExtOctets));
+            ASN1Primitive derObj2 = oAsnInStream2.readObject();
+            CRLDistPoint distPoint = CRLDistPoint.getInstance(derObj2);
+            for (DistributionPoint dp : distPoint.getDistributionPoints()) {
+                DistributionPointName dpn = dp.getDistributionPoint();
+                if (dpn != null) {
+                    if (dpn.getType() == DistributionPointName.FULL_NAME) {
+                        GeneralName[] genNames = GeneralNames.getInstance(dpn.getName()).getNames();
+                        for (GeneralName genName : genNames) {
+                            if (genName.getTagNo() == GeneralName.uniformResourceIdentifier) {
+                                String url = DERIA5String.getInstance(
+                                        genName.getName()).getString();
+                                crlUrls.add(url);
+
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+
+        }
+        return crlUrls;
+    }
+
+    private X509CRL getCrlObject(String crlURL) {
+        URL url = null;
+        try {
+            url = new URL(crlURL);
+            InputStream crlStream = url.openStream();
+            CertificateFactory cf = CertificateFactory.getInstance("X.509");
+            X509CRL crl = (X509CRL) cf.generateCRL(crlStream);
+            crlStream.close();
+            return crl;
+        } catch (MalformedURLException e) {
+            e.printStackTrace();
+        } catch (CertificateException e) {
+            e.printStackTrace();
+        } catch (CRLException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return null;
     }
 
     private X509Certificate findSigner(X509Certificate signedCert, List<X509Certificate> certificates) {
