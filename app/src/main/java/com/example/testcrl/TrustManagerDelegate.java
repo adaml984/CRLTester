@@ -61,9 +61,9 @@ public class TrustManagerDelegate implements X509TrustManager{
         } catch (InvalidAlgorithmParameterException e) {
             throw new SSLInitializationException(e.getLocalizedMessage(), e);
         } catch (IOException e) {
-            throw new SSLInitializationException(e.getLocalizedMessage(), e);
+            throw new SSLInitializationException(e.getMessage(), e);
         } catch (CertPathValidatorException e) {
-            throw new SSLInitializationException(e.getLocalizedMessage(), e);
+            throw new SSLInitializationException(e.getMessage(), e);
         }
     }
 
