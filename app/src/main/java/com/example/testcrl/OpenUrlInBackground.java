@@ -38,6 +38,7 @@ import java.security.cert.CertificateFactory;
 import java.security.cert.PKIXBuilderParameters;
 import java.security.cert.PKIXRevocationChecker;
 import java.security.cert.X509CRL;
+import java.security.cert.X509CRLEntry;
 import java.security.cert.X509CertSelector;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
@@ -160,7 +161,17 @@ public class OpenUrlInBackground extends AsyncTask<String, Void, UrlTestResult> 
             Certificate[] certs = urlConnection.getServerCertificates();
             if (certs.length > 0) {
                 for (Certificate cert : certs) {
-                    List<String> zzz = getCrlUrls((X509Certificate) cert);
+                    List<String> crlUrls = getCrlUrls((X509Certificate) cert);
+                    for (String crlUrl : crlUrls) {
+                        X509CRL crlObject = getCrlObject(crlUrl);
+                        if (crlObject != null) {
+                            X509CRLEntry entry = crlObject.getRevokedCertificate((X509Certificate) cert);
+                            if (entry != null) {
+                                result.IsSuccess = false;
+                                return result;
+                            }
+                        }
+                    }
                 }
             }
             result.IsSuccess = true;
